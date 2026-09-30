@@ -4,16 +4,14 @@ import type { Session } from '@supabase/supabase-js';
 import { decode } from 'base64-arraybuffer';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { toISODate } from '../lib/format';
-import { friendlyError, PHOTO_BUCKET, supabase, usernameToEmail } from '../lib/supabase';
-import type { Booking, Dress, Expense, Funding } from './types';
-
-export type AppData = {
-  funding: Funding[];
-  dresses: Dress[];
-  expenses: Expense[];
-  bookings: Booking[];
-};
+import { friendlyError, PHOTO_BUCKET, usernameToEmail } from '../lib/backend';
+import { supabase } from '../lib/supabase';
+import {
+  bookingRow, dressRow, expenseRow, fundingRow, toBooking, toDress, toExpense, toFunding,
+  type BookingInput, type BookingPatch, type DressInput, type ExpenseInput, type FundingInput,
+} from './rows';
+import type { AppData } from './totals';
+import type { Booking, Dress } from './types';
 
 /** A picked photo, as base64 JPEG/PNG data. */
 export type PhotoInput = { base64: string; mimeType: string };
@@ -26,38 +24,22 @@ type Store = AppData & {
   reload: () => Promise<void>;
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  addFunding: (f: Omit<Funding, 'id'>) => Promise<void>;
-  addDress: (d: Omit<Dress, 'id' | 'addedAt' | 'photoPath' | 'photoUri'>, photo?: PhotoInput) => Promise<Dress>;
-  addExpense: (e: Omit<Expense, 'id'>) => Promise<void>;
-  addBooking: (b: Omit<Booking, 'id' | 'createdAt' | 'status'>) => Promise<Booking>;
-  updateBooking: (id: string, patch: Partial<Pick<Booking, 'paid' | 'status'>>) => Promise<void>;
+  addFunding: (f: FundingInput) => Promise<void>;
+  updateFunding: (id: string, f: FundingInput) => Promise<void>;
+  deleteFunding: (id: string) => Promise<void>;
+  addDress: (d: DressInput, photo?: PhotoInput) => Promise<Dress>;
+  updateDress: (id: string, d: DressInput, photo?: PhotoInput) => Promise<void>;
+  deleteDress: (id: string) => Promise<void>;
+  addExpense: (e: ExpenseInput) => Promise<void>;
+  updateExpense: (id: string, e: ExpenseInput) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
+  addBooking: (b: BookingInput) => Promise<Booking>;
+  updateBooking: (id: string, patch: BookingPatch) => Promise<void>;
+  deleteBooking: (id: string) => Promise<void>;
 };
 
 const empty: AppData = { funding: [], dresses: [], expenses: [], bookings: [] };
 const PHOTO_URL_TTL = 60 * 60 * 24 * 7; // signed photo links last a week
-
-// --- Row mapping (snake_case DB rows <-> app types) ---
-
-type Row = Record<string, any>;
-const opt = (v: unknown) => (v === null || v === undefined || v === '' ? undefined : (v as string));
-const num = (v: unknown) => Number(v ?? 0);
-
-const toFunding = (r: Row): Funding => ({
-  id: r.id, source: r.source, fromName: r.from_name ?? '', amount: num(r.amount), date: r.date, note: opt(r.note),
-});
-const toExpense = (r: Row): Expense => ({
-  id: r.id, category: r.category, amount: num(r.amount), date: r.date, note: opt(r.note),
-});
-const toDress = (r: Row): Dress => ({
-  id: r.id, name: r.name, origin: r.origin, shop: opt(r.shop), purchasePrice: num(r.purchase_price),
-  rentalPrice: num(r.rental_price), size: opt(r.size), photoPath: opt(r.photo_path), color: r.color,
-  addedAt: r.added_at, note: opt(r.note),
-});
-const toBooking = (r: Row): Booking => ({
-  id: r.id, dressId: r.dress_id, customerName: r.customer_name, customerPhone: opt(r.customer_phone),
-  eventDate: r.event_date, price: num(r.price), paid: num(r.paid), status: r.status,
-  createdAt: toISODate(new Date(r.created_at)), note: opt(r.note),
-});
 
 function fail(error: { code?: string; message: string } | null): asserts error is null {
   if (error) throw new Error(friendlyError(error));
@@ -129,97 +111,141 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
-  const addFunding = useCallback(async (f: Omit<Funding, 'id'>) => {
-    const { data: row, error } = await supabase
-      .from('funding')
-      .insert({ source: f.source, from_name: f.fromName, amount: f.amount, date: f.date, note: f.note ?? null })
-      .select()
-      .single();
+  const addFunding = useCallback(async (f: FundingInput) => {
+    const { data: row, error } = await supabase.from('funding').insert(fundingRow(f)).select().single();
     fail(error);
     setData((d) => ({ ...d, funding: [toFunding(row), ...d.funding] }));
   }, []);
 
-  const addDress = useCallback(
-    async (input: Omit<Dress, 'id' | 'addedAt' | 'photoPath' | 'photoUri'>, photo?: PhotoInput) => {
-      const { data: row, error } = await supabase
-        .from('dresses')
-        .insert({
-          name: input.name,
-          origin: input.origin,
-          shop: input.shop ?? null,
-          purchase_price: input.purchasePrice,
-          rental_price: input.rentalPrice,
-          size: input.size ?? null,
-          color: input.color,
-          note: input.note ?? null,
-        })
-        .select()
-        .single();
-      fail(error);
-      let dress = toDress(row);
+  const updateFunding = useCallback(async (id: string, f: FundingInput) => {
+    const { data: row, error } = await supabase.from('funding').update(fundingRow(f)).eq('id', id).select().single();
+    fail(error);
+    setData((d) => ({ ...d, funding: d.funding.map((x) => (x.id === id ? toFunding(row) : x)) }));
+  }, []);
 
-      if (photo && userId) {
-        const ext = photo.mimeType === 'image/png' ? 'png' : 'jpg';
-        const path = `${userId}/${dress.id}.${ext}`;
-        const upload = await supabase.storage
-          .from(PHOTO_BUCKET)
-          .upload(path, decode(photo.base64), { contentType: photo.mimeType, upsert: true });
-        // The dress is already saved; a failed photo upload should not lose it.
-        if (!upload.error) {
-          const { error: updateError } = await supabase.from('dresses').update({ photo_path: path }).eq('id', dress.id);
-          if (!updateError) [dress] = await signPhotos([{ ...dress, photoPath: path }]);
-        }
-      }
+  const deleteFunding = useCallback(async (id: string) => {
+    const { error } = await supabase.from('funding').delete().eq('id', id);
+    fail(error);
+    setData((d) => ({ ...d, funding: d.funding.filter((x) => x.id !== id) }));
+  }, []);
 
-      setData((d) => ({ ...d, dresses: [dress, ...d.dresses] }));
-      return dress;
-    },
-    [userId],
-  );
-
-  const addExpense = useCallback(async (e: Omit<Expense, 'id'>) => {
-    const { data: row, error } = await supabase
-      .from('expenses')
-      .insert({ category: e.category, amount: e.amount, date: e.date, note: e.note ?? null })
-      .select()
-      .single();
+  const addExpense = useCallback(async (e: ExpenseInput) => {
+    const { data: row, error } = await supabase.from('expenses').insert(expenseRow(e)).select().single();
     fail(error);
     setData((d) => ({ ...d, expenses: [toExpense(row), ...d.expenses] }));
   }, []);
 
-  const addBooking = useCallback(async (b: Omit<Booking, 'id' | 'createdAt' | 'status'>) => {
-    const { data: row, error } = await supabase
-      .from('bookings')
-      .insert({
-        dress_id: b.dressId,
-        customer_name: b.customerName,
-        customer_phone: b.customerPhone ?? null,
-        event_date: b.eventDate,
-        price: b.price,
-        paid: b.paid,
-        note: b.note ?? null,
-      })
-      .select()
-      .single();
+  const updateExpense = useCallback(async (id: string, e: ExpenseInput) => {
+    const { data: row, error } = await supabase.from('expenses').update(expenseRow(e)).eq('id', id).select().single();
+    fail(error);
+    setData((d) => ({ ...d, expenses: d.expenses.map((x) => (x.id === id ? toExpense(row) : x)) }));
+  }, []);
+
+  const deleteExpense = useCallback(async (id: string) => {
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    fail(error);
+    setData((d) => ({ ...d, expenses: d.expenses.filter((x) => x.id !== id) }));
+  }, []);
+
+  /** Uploads a dress photo and records its path. The dress row must already exist. */
+  const attachPhoto = useCallback(
+    async (dress: Dress, photo: PhotoInput): Promise<Dress> => {
+      if (!userId) return dress;
+      const ext = photo.mimeType === 'image/png' ? 'png' : 'jpg';
+      const path = `${userId}/${dress.id}.${ext}`;
+      const upload = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .upload(path, decode(photo.base64), { contentType: photo.mimeType, upsert: true });
+      if (upload.error) throw new Error(`Saved, but the photo failed to upload: ${friendlyError(upload.error)}`);
+      const { error } = await supabase.from('dresses').update({ photo_path: path }).eq('id', dress.id);
+      fail(error);
+      // A photo with a different file type would otherwise leave the old file behind.
+      if (dress.photoPath && dress.photoPath !== path) await supabase.storage.from(PHOTO_BUCKET).remove([dress.photoPath]);
+      const [signed] = await signPhotos([{ ...dress, photoPath: path }]);
+      return signed;
+    },
+    [userId],
+  );
+
+  const replaceDress = (dress: Dress) =>
+    setData((d) => ({ ...d, dresses: d.dresses.map((x) => (x.id === dress.id ? dress : x)) }));
+
+  const addDress = useCallback(
+    async (input: DressInput, photo?: PhotoInput) => {
+      const { data: row, error } = await supabase.from('dresses').insert(dressRow(input)).select().single();
+      fail(error);
+      let dress = toDress(row);
+      setData((d) => ({ ...d, dresses: [dress, ...d.dresses] }));
+      if (photo) {
+        // The dress is already saved; a failed photo upload should not lose it.
+        try {
+          dress = await attachPhoto(dress, photo);
+          replaceDress(dress);
+        } catch {}
+      }
+      return dress;
+    },
+    [attachPhoto],
+  );
+
+  const updateDress = useCallback(
+    async (id: string, input: DressInput, photo?: PhotoInput) => {
+      const { data: row, error } = await supabase.from('dresses').update(dressRow(input)).eq('id', id).select().single();
+      fail(error);
+      const [dress] = await signPhotos([toDress(row)]);
+      replaceDress(dress);
+      if (photo) replaceDress(await attachPhoto(dress, photo));
+    },
+    [attachPhoto],
+  );
+
+  const deleteDress = useCallback(
+    async (id: string) => {
+      const count = data.bookings.filter((b) => b.dressId === id).length;
+      if (count) {
+        throw new Error(`This dress has ${count} booking${count > 1 ? 's' : ''} in its history. Delete those bookings first.`);
+      }
+      const photoPath = data.dresses.find((x) => x.id === id)?.photoPath;
+      const { error } = await supabase.from('dresses').delete().eq('id', id);
+      fail(error);
+      if (photoPath) await supabase.storage.from(PHOTO_BUCKET).remove([photoPath]);
+      setData((d) => ({ ...d, dresses: d.dresses.filter((x) => x.id !== id) }));
+    },
+    [data.bookings, data.dresses],
+  );
+
+  const addBooking = useCallback(async (b: BookingInput) => {
+    const { data: row, error } = await supabase.from('bookings').insert(bookingRow(b)).select().single();
     fail(error);
     const booking = toBooking(row);
     setData((d) => ({ ...d, bookings: [...d.bookings, booking] }));
     return booking;
   }, []);
 
-  const updateBooking = useCallback(async (id: string, patch: Partial<Pick<Booking, 'paid' | 'status'>>) => {
-    const { data: row, error } = await supabase.from('bookings').update(patch).eq('id', id).select().single();
+  const updateBooking = useCallback(async (id: string, patch: BookingPatch) => {
+    const { data: row, error } = await supabase.from('bookings').update(bookingRow(patch)).eq('id', id).select().single();
     fail(error);
     const updated = toBooking(row);
     setData((d) => ({ ...d, bookings: d.bookings.map((b) => (b.id === id ? updated : b)) }));
   }, []);
 
+  const deleteBooking = useCallback(async (id: string) => {
+    const { error } = await supabase.from('bookings').delete().eq('id', id);
+    fail(error);
+    setData((d) => ({ ...d, bookings: d.bookings.filter((b) => b.id !== id) }));
+  }, []);
+
   const value = useMemo(
     () => ({
       ...data, session, authReady, loading, loadError, reload, signIn, signOut,
-      addFunding, addDress, addExpense, addBooking, updateBooking,
+      addFunding, updateFunding, deleteFunding, addExpense, updateExpense, deleteExpense,
+      addDress, updateDress, deleteDress, addBooking, updateBooking, deleteBooking,
     }),
-    [data, session, authReady, loading, loadError, reload, signIn, signOut, addFunding, addDress, addExpense, addBooking, updateBooking],
+    [
+      data, session, authReady, loading, loadError, reload, signIn, signOut,
+      addFunding, updateFunding, deleteFunding, addExpense, updateExpense, deleteExpense,
+      addDress, updateDress, deleteDress, addBooking, updateBooking, deleteBooking,
+    ],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
@@ -234,23 +260,4 @@ export function useStore(): Store {
 export function useDress(id: string | undefined): Dress | undefined {
   const { dresses } = useStore();
   return dresses.find((d) => d.id === id);
-}
-
-/** Money summary. Rental income is what customers actually paid. */
-export function totals(data: AppData, inPeriod: (iso: string) => boolean = () => true) {
-  const funding = data.funding.filter((f) => inPeriod(f.date)).reduce((s, f) => s + f.amount, 0);
-  // Money kept from cancelled bookings still counts.
-  const rentals = data.bookings.filter((b) => inPeriod(b.createdAt)).reduce((s, b) => s + b.paid, 0);
-  const dressPurchases = data.dresses.filter((d) => inPeriod(d.addedAt)).reduce((s, d) => s + d.purchasePrice, 0);
-  const expenses = data.expenses.filter((e) => inPeriod(e.date)).reduce((s, e) => s + e.amount, 0);
-  return {
-    funding,
-    rentals,
-    dressPurchases,
-    expenses,
-    moneyIn: funding + rentals,
-    moneyOut: dressPurchases + expenses,
-    cash: funding + rentals - dressPurchases - expenses,
-    profit: rentals - expenses, // earnings from renting, before paying back dress costs
-  };
 }

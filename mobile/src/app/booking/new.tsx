@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -12,27 +12,33 @@ import { dayState, nearestFreeDays } from '../../lib/availability';
 import { longDate, parseAmount, parseISODate, shortDate, todayISO } from '../../lib/format';
 import { colors, fonts, radius, spacing } from '../../theme';
 
-export default function NewBookingScreen() {
-  const params = useLocalSearchParams<{ dressId?: string; date?: string }>();
-  const { dresses, bookings, addBooking } = useStore();
+/** Creates a booking, or edits one when opened with ?id=. */
+export default function BookingFormScreen() {
+  const params = useLocalSearchParams<{ id?: string; dressId?: string; date?: string }>();
+  const { dresses, bookings, addBooking, updateBooking } = useStore();
+  const existing = params.id ? bookings.find((b) => b.id === params.id) : undefined;
+  const ignoreId = existing?.id; // its own dates don't block it
 
-  const [dressId, setDressId] = useState(params.dressId ?? dresses[0]?.id);
-  const [date, setDate] = useState(params.date ?? todayISO());
-  const [month, setMonth] = useState(parseISODate(params.date ?? todayISO()));
+  const initialDate = existing?.eventDate ?? params.date ?? todayISO();
+  const [dressId, setDressId] = useState(existing?.dressId ?? params.dressId ?? dresses[0]?.id);
+  const [date, setDate] = useState(initialDate);
+  const [month, setMonth] = useState(parseISODate(initialDate));
   const dress = dresses.find((d) => d.id === dressId);
 
-  const [customerName, setCustomerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [price, setPrice] = useState(dress?.rentalPrice ? String(dress.rentalPrice) : '');
-  const [paid, setPaid] = useState('');
-  const [note, setNote] = useState('');
+  const [customerName, setCustomerName] = useState(existing?.customerName ?? '');
+  const [phone, setPhone] = useState(existing?.customerPhone ?? '');
+  const [price, setPrice] = useState(existing ? String(existing.price) : dress?.rentalPrice ? String(dress.rentalPrice) : '');
+  const [paid, setPaid] = useState(existing?.paid ? String(existing.paid) : '');
+  const [note, setNote] = useState(existing?.note ?? '');
   const { saving, error, run } = useSave();
 
+  if (params.id && !existing) return <EmptyState text="This booking no longer exists" />;
   if (!dress) return <EmptyState text="Add a dress first" />;
 
   const today = todayISO();
-  const state = dayState(bookings, dress.id, date);
-  const available = state.kind === 'free' && date >= today;
+  const state = dayState(bookings, dress.id, date, ignoreId);
+  // A past booking can still be edited (e.g. payments) as long as its date is unchanged.
+  const available = state.kind === 'free' && (date >= today || date === existing?.eventDate);
   const priceValue = parseAmount(price);
   const paidValue = paid === '' ? 0 : parseAmount(paid);
   const valid = available && customerName.trim() !== '' && priceValue >= 0 && paidValue >= 0 && paidValue <= priceValue;
@@ -45,7 +51,7 @@ export default function NewBookingScreen() {
 
   const save = () =>
     run(async () => {
-      const booking = await addBooking({
+      const input = {
         dressId: dress.id,
         eventDate: date,
         customerName: customerName.trim(),
@@ -53,17 +59,24 @@ export default function NewBookingScreen() {
         price: priceValue,
         paid: paidValue,
         note: note.trim() || undefined,
-      });
-      router.replace({ pathname: '/booking/[id]', params: { id: booking.id } });
+      };
+      if (existing) {
+        await updateBooking(existing.id, input);
+        router.back();
+      } else {
+        const booking = await addBooking(input);
+        router.replace({ pathname: '/booking/[id]', params: { id: booking.id } });
+      }
     });
 
   return (
-    <FormScreen footer={<SubmitButton label={saving ? 'Saving…' : 'Confirm booking'} onPress={save} disabled={!valid || saving} />}>
+    <FormScreen footer={<SubmitButton label={saving ? 'Saving…' : existing ? 'Save changes' : 'Confirm booking'} onPress={save} disabled={!valid || saving} />}>
+      {existing ? <Stack.Screen options={{ title: 'Edit booking' }} /> : null}
       <Field label="Dress">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
           {dresses.map((d) => {
             const on = d.id === dress.id;
-            const freeThatDay = dayState(bookings, d.id, date).kind === 'free';
+            const freeThatDay = dayState(bookings, d.id, date, ignoreId).kind === 'free';
             return (
               <Pressable key={d.id} onPress={() => chooseDress(d.id)} style={[styles.pick, on && styles.pickActive]}>
                 <DressThumb dress={d} size={52} style={freeThatDay ? undefined : { opacity: 0.45 }} />
@@ -81,7 +94,7 @@ export default function NewBookingScreen() {
             onMonthChange={setMonth}
             selected={date}
             onSelect={setDate}
-            dayLook={dressDayLook(bookings, dress)}
+            dayLook={dressDayLook(bookings, dress, ignoreId)}
             disablePast
           />
           <Legend />
@@ -92,7 +105,7 @@ export default function NewBookingScreen() {
           </Text>
           {!available && date >= today ? (
             <View style={styles.suggestRow}>
-              {nearestFreeDays(bookings, dress.id, date, today).map((iso) => (
+              {nearestFreeDays(bookings, dress.id, date, today, ignoreId).map((iso) => (
                 <Pressable key={iso} style={styles.suggest} onPress={() => setDate(iso)}>
                   <Text style={styles.suggestText}>{shortDate(iso)}</Text>
                 </Pressable>

@@ -1,28 +1,18 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 
 import { DressThumb } from '../../components/DressThumb';
 import { FormError, FormScreen, useSave } from '../../components/form';
 import { Badge, Card, EmptyState, PrimaryButton } from '../../components/ui';
 import { useDress, useStore } from '../../data/store';
 import { BLOCK_AFTER, BLOCK_BEFORE } from '../../lib/availability';
+import { confirm } from '../../lib/confirm';
 import { longDate, money, shiftISO, shortDate } from '../../lib/format';
 import { colors, fonts, spacing, type } from '../../theme';
 
-function confirm(message: string, onYes: () => void) {
-  if (Platform.OS === 'web') {
-    if (window.confirm(message)) onYes();
-    return;
-  }
-  Alert.alert('Are you sure?', message, [
-    { text: 'No', style: 'cancel' },
-    { text: 'Yes', style: 'destructive', onPress: onYes },
-  ]);
-}
-
 export default function BookingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { bookings, updateBooking } = useStore();
+  const { bookings, updateBooking, deleteBooking } = useStore();
   const booking = bookings.find((b) => b.id === id);
   const dress = useDress(booking?.dressId);
   const { saving, error, run } = useSave();
@@ -49,7 +39,9 @@ export default function BookingScreen() {
         <Row label="Return" value={shortDate(shiftISO(booking.eventDate, 1))} />
         <Row label="Cleaning" value={shortDate(shiftISO(booking.eventDate, BLOCK_AFTER))} />
         <Row label="Next rental possible" value={shortDate(shiftISO(booking.eventDate, BLOCK_AFTER + 1))} />
-        {booking.customerPhone ? <Row label="Phone" value={booking.customerPhone} onPress={() => Linking.openURL(`tel:${booking.customerPhone}`)} /> : null}
+        {booking.customerPhone ? (
+          <Row label="Phone" value={booking.customerPhone} onPress={() => Linking.openURL(`tel:${booking.customerPhone}`)} />
+        ) : null}
         {booking.note ? <Row label="Note" value={booking.note} /> : null}
       </Card>
 
@@ -60,26 +52,54 @@ export default function BookingScreen() {
       </Card>
 
       <FormError message={error} />
-      {!cancelled ? (
-        <View style={{ gap: spacing.sm }}>
-          {due > 0 ? (
-            <PrimaryButton label={`Mark fully paid (+${money(due)})`} icon="cash-outline" onPress={() => !saving && run(() => updateBooking(booking.id, { paid: booking.price }))} />
-          ) : null}
-          <PrimaryButton
-            label="Cancel booking"
-            icon="close-circle-outline"
-            variant="soft"
-            onPress={() =>
-              confirm('Cancel this booking? The dress becomes free again. Money already paid stays recorded.', () =>
+      <View style={{ gap: spacing.sm }}>
+        <PrimaryButton
+          label="Edit booking"
+          icon="create-outline"
+          variant="soft"
+          onPress={() => router.push({ pathname: '/booking/new', params: { id: booking.id } })}
+        />
+        {!cancelled ? (
+          <>
+            {due > 0 ? (
+              <PrimaryButton
+                label={`Mark fully paid (+${money(due)})`}
+                icon="cash-outline"
+                onPress={() => !saving && run(() => updateBooking(booking.id, { paid: booking.price }))}
+              />
+            ) : null}
+            <PrimaryButton
+              label="Cancel booking"
+              icon="close-circle-outline"
+              variant="soft"
+              onPress={() =>
+                confirm('Cancel this booking? The dress becomes free again. Money already paid stays recorded.', () =>
+                  run(async () => {
+                    await updateBooking(booking.id, { status: 'cancelled' });
+                    router.back();
+                  }),
+                )
+              }
+            />
+          </>
+        ) : null}
+        <PrimaryButton
+          label="Delete booking"
+          icon="trash-outline"
+          variant="danger"
+          onPress={() =>
+            confirm(
+              'Delete this booking completely? Its payments are removed from your cash flow too. To keep the money record, cancel it instead.',
+              () =>
                 run(async () => {
-                  await updateBooking(booking.id, { status: 'cancelled' });
+                  await deleteBooking(booking.id);
                   router.back();
                 }),
-              )
-            }
-          />
-        </View>
-      ) : null}
+              'Delete',
+            )
+          }
+        />
+      </View>
     </FormScreen>
   );
 }

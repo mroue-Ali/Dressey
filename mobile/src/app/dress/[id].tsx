@@ -1,23 +1,25 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { dressDayLook, Legend } from '../../components/Availability';
 import { BookingRow } from '../../components/BookingRow';
 import { DressThumb } from '../../components/DressThumb';
-import { FormScreen } from '../../components/form';
+import { FormError, FormScreen, useSave } from '../../components/form';
 import { MonthCalendar } from '../../components/MonthCalendar';
 import { Badge, Card, EmptyState, PrimaryButton, SectionHeader } from '../../components/ui';
 import { dressOrigins, labelOf } from '../../data/labels';
 import { useStore } from '../../data/store';
+import { confirm } from '../../lib/confirm';
 import { money, shortDate, todayISO } from '../../lib/format';
 import { colors, fonts, radius, spacing, type } from '../../theme';
 
 export default function DressScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { dresses, bookings } = useStore();
+  const { dresses, bookings, deleteDress } = useStore();
   const [month, setMonth] = useState(new Date());
   const [selected, setSelected] = useState(todayISO());
+  const { error, run } = useSave();
   const dress = dresses.find((d) => d.id === id);
 
   if (!dress) return <EmptyState text="Dress not found" />;
@@ -25,11 +27,21 @@ export default function DressScreen() {
   const mine = bookings.filter((b) => b.dressId === dress.id).sort((a, b) => b.eventDate.localeCompare(a.eventDate));
   const rentals = mine.filter((b) => b.status === 'booked');
   const earned = mine.reduce((s, b) => s + b.paid, 0);
+  const edit = () => router.push({ pathname: '/dress/new', params: { id: dress.id } });
   const payback = dress.purchasePrice > 0 ? Math.min(earned / dress.purchasePrice, 1) : null;
 
   return (
     <FormScreen>
-      <Stack.Screen options={{ title: dress.name }} />
+      <Stack.Screen
+        options={{
+          title: dress.name,
+          headerRight: () => (
+            <Pressable onPress={edit} hitSlop={10} style={{ paddingHorizontal: spacing.sm }}>
+              <Text style={styles.headerEdit}>Edit</Text>
+            </Pressable>
+          ),
+        }}
+      />
       <DressThumb dress={dress} style={dress.photoUri ? styles.photo : styles.noPhoto} />
 
       <View style={{ gap: spacing.xs }}>
@@ -74,6 +86,25 @@ export default function DressScreen() {
 
       <SectionHeader title="Rental history" />
       <Card>{mine.length ? mine.map((b) => <BookingRow key={b.id} booking={b} />) : <EmptyState text="Not rented yet" />}</Card>
+
+      <FormError message={error} />
+      <PrimaryButton label="Edit dress" icon="create-outline" variant="soft" onPress={edit} />
+      <PrimaryButton
+        label="Delete dress"
+        icon="trash-outline"
+        variant="danger"
+        onPress={() =>
+          confirm(
+            `Delete "${dress.name}"? Its photo is deleted too. This cannot be undone.`,
+            () =>
+              run(async () => {
+                await deleteDress(dress.id);
+                router.back();
+              }),
+            'Delete',
+          )
+        }
+      />
     </FormScreen>
   );
 }
@@ -90,6 +121,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   photo: { width: '100%', aspectRatio: 3 / 4, maxHeight: 420, borderRadius: radius.lg },
   noPhoto: { width: '100%', height: 140, borderRadius: radius.lg },
+  headerEdit: { fontFamily: fonts.semibold, fontSize: 15, color: colors.primary },
   tags: { flexDirection: 'row', gap: spacing.sm },
   facts: { gap: spacing.md },
   fact: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg },

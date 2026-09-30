@@ -64,6 +64,7 @@ export function nearestFreeDays(
   dressId: string,
   iso: string,
   today: string,
+  ignoreId?: string, // a booking being edited, so its own dates count as free
   count = 3,
   range = 30,
 ): string[] {
@@ -71,7 +72,7 @@ export function nearestFreeDays(
   for (let step = 1; step <= range && found.length < count; step++) {
     for (const candidate of [shiftISO(iso, -step), shiftISO(iso, step)]) {
       if (candidate < today || found.length >= count) continue;
-      if (canBook(bookings, dressId, candidate)) found.push(candidate);
+      if (canBook(bookings, dressId, candidate, ignoreId)) found.push(candidate);
     }
   }
   return found.sort();

@@ -87,12 +87,12 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   );
 }
 
-export function PrimaryButton({ label, icon, onPress, variant = 'solid' }: { label: string; icon?: IconName; onPress?: () => void; variant?: 'solid' | 'soft' }) {
-  const fg = variant === 'solid' ? colors.textOnPrimary : colors.primaryDark;
+export function PrimaryButton({ label, icon, onPress, variant = 'solid' }: { label: string; icon?: IconName; onPress?: () => void; variant?: 'solid' | 'soft' | 'danger' }) {
+  const fg = variant === 'solid' ? colors.textOnPrimary : variant === 'danger' ? colors.danger : colors.primaryDark;
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.button, variant === 'soft' && styles.buttonSoft, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [styles.button, variant === 'soft' && styles.buttonSoft, variant === 'danger' && styles.buttonDanger, pressed && { opacity: 0.85 }]}
     >
       {icon ? <Ionicons name={icon} size={18} color={fg} /> : null}
       <Text style={[styles.buttonText, { color: fg }]}>{label}</Text>
@@ -143,6 +143,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md + 2,
   },
   buttonSoft: { backgroundColor: colors.primarySoft },
+  buttonDanger: { backgroundColor: colors.dangerSoft },
   buttonText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.textOnPrimary },
   empty: { textAlign: 'center', paddingVertical: spacing.lg },
 });

@@ -27,26 +27,3 @@ if (Platform.OS !== 'web') {
     else supabase.auth.stopAutoRefresh();
   });
 }
-
-export const PHOTO_BUCKET = 'dress-photos';
-
-// Supabase logins need an email, so usernames map to a hidden address that
-// never receives mail. Create users in the dashboard as <username>@dressey.app.
-const USERNAME_DOMAIN = 'dressey.app';
-
-export function usernameToEmail(username: string): string {
-  const u = username.trim().toLowerCase();
-  return u.includes('@') ? u : `${u}@${USERNAME_DOMAIN}`;
-}
-
-export function emailToUsername(email: string | undefined): string {
-  return (email ?? '').replace(`@${USERNAME_DOMAIN}`, '');
-}
-
-/** Turns Supabase/Postgres errors into messages the owner can act on. */
-export function friendlyError(error: { code?: string; message: string }): string {
-  if (error.code === '23P01') return 'This dress is already booked too close to that date.';
-  if (error.code === '23514') return 'Some values are not allowed (check the amounts).';
-  if (/fetch|network/i.test(error.message)) return 'No internet connection. Please try again.';
-  return error.message;
-}

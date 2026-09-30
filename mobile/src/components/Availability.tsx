@@ -20,10 +20,10 @@ export function lookForState(state: DayState): DayLook {
 }
 
 /** Calendar colouring for one dress; past days stay plain. */
-export function dressDayLook(bookings: Booking[], dress: Dress) {
+export function dressDayLook(bookings: Booking[], dress: Dress, ignoreId?: string) {
   const today = todayISO();
   return (iso: string): DayLook | undefined => {
-    const state = dayState(bookings, dress.id, iso);
+    const state = dayState(bookings, dress.id, iso, ignoreId);
     if (iso < today && state.kind !== 'busy') return undefined;
     return lookForState(state);
   };

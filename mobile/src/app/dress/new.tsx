@@ -1,33 +1,43 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { DressThumb } from '../../components/DressThumb';
 import { AmountInput, ChoiceChips, Field, FormError, FormScreen, Input, SubmitButton, useSave } from '../../components/form';
+import { EmptyState, PrimaryButton } from '../../components/ui';
 import { dressOrigins } from '../../data/labels';
 import { useStore, type PhotoInput } from '../../data/store';
 import type { DressOrigin } from '../../data/types';
+import { confirm } from '../../lib/confirm';
 import { parseAmount } from '../../lib/format';
 import { colors, fonts, spacing } from '../../theme';
 
 // Placeholder tints for dresses without a photo.
 const TINTS = ['#E9D8B8', '#EBC7C1', '#D8C3A5', '#C9B8D6', '#BFD3C1', '#E6CFA8'];
 
-export default function NewDressScreen() {
-  const { addDress } = useStore();
-  const [origin, setOrigin] = useState<DressOrigin>('bought');
-  const [name, setName] = useState('');
-  const [shop, setShop] = useState('');
-  const [price, setPrice] = useState('');
-  const [rentalPrice, setRentalPrice] = useState('');
-  const [size, setSize] = useState('');
-  const [note, setNote] = useState('');
-  const [photoUri, setPhotoUri] = useState<string>();
+const amountText = (n: number | undefined) => (n ? String(n) : '');
+
+/** Adds a dress, or edits it when opened with ?id=. */
+export default function DressFormScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { dresses, addDress, updateDress, deleteDress } = useStore();
+  const existing = id ? dresses.find((d) => d.id === id) : undefined;
+
+  const [origin, setOrigin] = useState<DressOrigin>(existing?.origin ?? 'bought');
+  const [name, setName] = useState(existing?.name ?? '');
+  const [shop, setShop] = useState(existing?.shop ?? '');
+  const [price, setPrice] = useState(existing?.origin === 'bought' ? String(existing.purchasePrice) : '');
+  const [rentalPrice, setRentalPrice] = useState(amountText(existing?.rentalPrice));
+  const [size, setSize] = useState(existing?.size ?? '');
+  const [note, setNote] = useState(existing?.note ?? '');
+  const [photoUri, setPhotoUri] = useState<string | undefined>(existing?.photoUri);
   const [photo, setPhoto] = useState<PhotoInput>();
   const { saving, error, run } = useSave();
-  const [tint] = useState(() => TINTS[Math.floor(Math.random() * TINTS.length)]);
+  const [tint] = useState(() => existing?.color ?? TINTS[Math.floor(Math.random() * TINTS.length)]);
+
+  if (id && !existing) return <EmptyState text="This dress no longer exists" />;
 
   const bought = origin === 'bought';
   const purchase = parseAmount(price);
@@ -51,24 +61,36 @@ export default function NewDressScreen() {
 
   const save = () =>
     run(async () => {
-      const dress = await addDress(
-        {
-          name: name.trim(),
-          origin,
-          shop: bought ? shop.trim() || undefined : undefined,
-          purchasePrice: bought && purchase > 0 ? purchase : 0,
-          rentalPrice: rental > 0 ? rental : 0,
-          size: size.trim() || undefined,
-          note: note.trim() || undefined,
-          color: tint,
-        },
-        photo,
-      );
-      router.replace({ pathname: '/dress/[id]', params: { id: dress.id } });
+      const input = {
+        name: name.trim(),
+        origin,
+        shop: bought ? shop.trim() || undefined : undefined,
+        purchasePrice: bought && purchase > 0 ? purchase : 0,
+        rentalPrice: rental > 0 ? rental : 0,
+        size: size.trim() || undefined,
+        note: note.trim() || undefined,
+        color: tint,
+      };
+      if (existing) {
+        await updateDress(existing.id, input, photo);
+        router.back();
+      } else {
+        const dress = await addDress(input, photo);
+        router.replace({ pathname: '/dress/[id]', params: { id: dress.id } });
+      }
     });
 
+  const remove = () =>
+    confirm(`Delete "${existing!.name}"? Its photo is deleted too. This cannot be undone.`, () =>
+      run(async () => {
+        await deleteDress(existing!.id);
+        router.dismissAll();
+        router.navigate('/dresses');
+      }), 'Delete');
+
   return (
-    <FormScreen footer={<SubmitButton label={saving ? 'Saving…' : bought ? 'Save purchase' : 'Save dress'} onPress={save} disabled={!valid || saving} />}>
+    <FormScreen footer={<SubmitButton label={saving ? 'Saving…' : existing ? 'Save changes' : bought ? 'Save purchase' : 'Save dress'} onPress={save} disabled={!valid || saving} />}>
+      {existing ? <Stack.Screen options={{ title: 'Edit dress' }} /> : null}
       <View style={styles.photoRow}>
         <DressThumb dress={{ photoUri, color: tint }} style={styles.photo} />
         <View style={styles.photoActions}>
@@ -111,6 +133,7 @@ export default function NewDressScreen() {
         <Input value={note} onChangeText={setNote} placeholder={origin === 'gift' ? 'Gift from…' : 'Optional'} multiline />
       </Field>
       <FormError message={error} />
+      {existing ? <PrimaryButton label="Delete dress" icon="trash-outline" variant="danger" onPress={remove} /> : null}
     </FormScreen>
   );
 }

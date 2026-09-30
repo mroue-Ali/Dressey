@@ -3,8 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { BookingRow } from '../../components/BookingRow';
 import { Card, EmptyState, PrimaryButton, Screen, SectionHeader, StatCard } from '../../components/ui';
-import { totals, useStore } from '../../data/store';
-import { emailToUsername } from '../../lib/supabase';
+import { useStore } from '../../data/store';
+import { totals } from '../../data/totals';
+import { emailToUsername } from '../../lib/backend';
 import { canBook } from '../../lib/availability';
 import { isSameMonth, money, shiftISO, todayISO } from '../../lib/format';
 import { colors, fonts, spacing } from '../../theme';

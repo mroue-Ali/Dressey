@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dresséy",
     "slug": "dressey",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
@@ -15,7 +15,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.dressey.app"
+      "package": "com.dressey.app",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png",

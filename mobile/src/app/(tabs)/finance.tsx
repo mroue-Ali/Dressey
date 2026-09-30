@@ -1,15 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, Chip, EmptyState, PrimaryButton, Screen, SectionHeader } from '../../components/ui';
 import { expenseCategories, fundingSources, labelOf } from '../../data/labels';
-import { totals, useStore } from '../../data/store';
+import { useStore } from '../../data/store';
+import { totals } from '../../data/totals';
 import { isSameMonth, money, shortDate } from '../../lib/format';
 import { colors, fonts, radius, spacing, type } from '../../theme';
 
-type Entry = { id: string; kind: 'in' | 'out'; title: string; detail: string; amount: number; date: string };
+// Each movement opens the record it came from, where it can be edited or deleted.
+type Entry = { id: string; kind: 'in' | 'out'; title: string; detail: string; amount: number; date: string; href: Href };
 
 export default function FinanceScreen() {
   const data = useStore();
@@ -21,14 +23,14 @@ export default function FinanceScreen() {
 
   const dressName = (id: string) => data.dresses.find((d) => d.id === id)?.name ?? 'Dress';
   const entries: Entry[] = [
-    ...data.funding.map((f) => ({ id: f.id, kind: 'in' as const, title: labelOf(fundingSources, f.source), detail: f.fromName || f.note || '', amount: f.amount, date: f.date })),
+    ...data.funding.map((f) => ({ id: f.id, kind: 'in' as const, title: labelOf(fundingSources, f.source), detail: f.fromName || f.note || '', amount: f.amount, date: f.date, href: { pathname: '/funding/new' as const, params: { id: f.id } } })),
     ...data.bookings
       .filter((b) => b.paid > 0)
-      .map((b) => ({ id: b.id, kind: 'in' as const, title: 'Rental', detail: `${b.customerName} · ${dressName(b.dressId)}`, amount: b.paid, date: b.createdAt })),
+      .map((b) => ({ id: b.id, kind: 'in' as const, title: 'Rental', detail: `${b.customerName} · ${dressName(b.dressId)}`, amount: b.paid, date: b.createdAt, href: { pathname: '/booking/[id]' as const, params: { id: b.id } } })),
     ...data.dresses
       .filter((d) => d.purchasePrice > 0)
-      .map((d) => ({ id: d.id, kind: 'out' as const, title: 'Dress bought', detail: [d.name, d.shop].filter(Boolean).join(' · '), amount: d.purchasePrice, date: d.addedAt })),
-    ...data.expenses.map((e) => ({ id: e.id, kind: 'out' as const, title: labelOf(expenseCategories, e.category), detail: e.note ?? '', amount: e.amount, date: e.date })),
+      .map((d) => ({ id: d.id, kind: 'out' as const, title: 'Dress bought', detail: [d.name, d.shop].filter(Boolean).join(' · '), amount: d.purchasePrice, date: d.addedAt, href: { pathname: '/dress/[id]' as const, params: { id: d.id } } })),
+    ...data.expenses.map((e) => ({ id: e.id, kind: 'out' as const, title: labelOf(expenseCategories, e.category), detail: e.note ?? '', amount: e.amount, date: e.date, href: { pathname: '/expense/new' as const, params: { id: e.id } } })),
   ]
     .filter((e) => inPeriod(e.date))
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -74,7 +76,11 @@ export default function FinanceScreen() {
           entries.map((e, i) => {
             const isIn = e.kind === 'in';
             return (
-              <View key={`${e.kind}${e.id}`} style={[styles.tx, i > 0 && styles.txBorder]}>
+              <Pressable
+                key={`${e.kind}${e.id}`}
+                onPress={() => router.push(e.href)}
+                style={({ pressed }) => [styles.tx, i > 0 && styles.txBorder, pressed && { opacity: 0.6 }]}
+              >
                 <View style={[styles.txIcon, { backgroundColor: isIn ? colors.successSoft : colors.dangerSoft }]}>
                   <Ionicons name={isIn ? 'arrow-down' : 'arrow-up'} size={16} color={isIn ? colors.success : colors.danger} />
                 </View>
@@ -85,7 +91,8 @@ export default function FinanceScreen() {
                 <Text style={[styles.txAmount, { color: isIn ? colors.success : colors.danger }]}>
                   {isIn ? '+' : '−'}{money(e.amount)}
                 </Text>
-              </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              </Pressable>
             );
           })
         ) : (
