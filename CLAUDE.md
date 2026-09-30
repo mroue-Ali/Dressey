@@ -39,6 +39,8 @@ schedule with availability, and cash flow. Beige theme.
 - Web deploy: https://dressey.online (+ www) on Ali's VPS; domain at Spaceship, A records → the VPS IP (see ~/.claude/vps-mroueali.md). deploy/ holds
   the Dockerfile (build context = repo root, since web imports mobile/src), docker-compose.yml
   (127.0.0.1:8001 → nginx serving the SPA), the host nginx block, and deploy.sh. Supabase keys go
-  in deploy/.env on the server as build args. To update: run deploy/deploy.sh on the server.
+  in deploy/.env on the server as build args. Pushing to main auto-deploys (.github/workflows/deploy.yml,
+  forced-command SSH key running deploy/deploy.sh, same pattern as the portfolio); deploy.sh also
+  runs by hand on the server.
 - Brand assets (mobile/assets/logo.png, icon, splash) are cut from the owner's "dresséy Logo.pdf";
   background ivory is #F6F1EB to match the artwork.
