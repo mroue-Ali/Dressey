@@ -7,6 +7,13 @@
       "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
       "cwd": "mobile",
       "port": 8081
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5180", "--strictPort"],
+      "cwd": "web",
+      "port": 5180
     }
   ]
 }
