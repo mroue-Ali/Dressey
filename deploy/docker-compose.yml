@@ -1,5 +1,5 @@
 # Dresséy web app on the mroueali.com VPS.
-# Published on loopback only; the host nginx proxies dressey.mroueali.com to it.
+# Published on loopback only; the host nginx proxies dressey.online to it.
 # Needs deploy/.env (copy from .env.example) with the Supabase URL and publishable key.
 name: dressey
 
