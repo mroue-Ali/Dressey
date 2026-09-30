@@ -1,0 +1,53 @@
+# Deploy dressey.online on every push to main.
+#
+# Same shape as the portfolio's: the runner builds nothing. It opens one SSH
+# connection to the VPS, and a forced command in that key's authorized_keys
+# entry runs deploy/deploy.sh, so this key cannot open a shell even if the
+# secret leaks. deploy/deploy.sh is also the script you run by hand.
+#
+# Secrets: SSH_HOST, SSH_USER, SSH_KEY, SSH_KNOWN_HOSTS.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a second push queues behind the first.
+concurrency:
+  group: deploy-dressey
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # The VPS builds a small static site in about a minute.
+    timeout-minutes: 15
+    steps:
+      - name: Run the deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Pinned rather than StrictHostKeyChecking=no, so the runner never
+          # hands the key to whatever answers on port 22.
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          # -T because the authorized_keys entry forbids a PTY; no remote
+          # command because the forced command ignores one anyway. deploy.sh
+          # exits non-zero if the site does not come up, failing this job.
+          ssh -T \
+            -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o ConnectTimeout=15 \
+            "$SSH_USER@$SSH_HOST"
