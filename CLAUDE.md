@@ -36,5 +36,9 @@ schedule with availability, and cash flow. Beige theme.
   `./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a`
   → android/app/build/outputs/apk/release/app-release.apk. android/ is generated and gitignored;
   configure icons/splash in app.json, never by editing android/.
+- Web deploy: https://dressey.mroueali.com on Ali's VPS (see ~/.claude/vps-mroueali.md). deploy/ holds
+  the Dockerfile (build context = repo root, since web imports mobile/src), docker-compose.yml
+  (127.0.0.1:8001 → nginx serving the SPA), the host nginx block, and deploy.sh. Supabase keys go
+  in deploy/.env on the server as build args. To update: run deploy/deploy.sh on the server.
 - Brand assets (mobile/assets/logo.png, icon, splash) are cut from the owner's "dresséy Logo.pdf";
   background ivory is #F6F1EB to match the artwork.

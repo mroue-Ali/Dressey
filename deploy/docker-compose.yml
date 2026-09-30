@@ -1,0 +1,17 @@
+# Dresséy web app on the mroueali.com VPS.
+# Published on loopback only; the host nginx proxies dressey.mroueali.com to it.
+# Needs deploy/.env (copy from .env.example) with the Supabase URL and publishable key.
+name: dressey
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_KEY: ${VITE_SUPABASE_KEY}
+    image: dressey-web
+    ports:
+      - "127.0.0.1:8001:80" # never 0.0.0.0: Docker's rules bypass ufw
+    restart: unless-stopped
