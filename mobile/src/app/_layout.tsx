@@ -61,6 +61,7 @@ function AppStack() {
       <Stack.Screen name="expense/new" options={{ title: 'Add expense', presentation: 'modal' }} />
       <Stack.Screen name="dress/new" options={{ title: 'Add dress', presentation: 'modal' }} />
       <Stack.Screen name="booking/new" options={{ title: 'New booking', presentation: 'modal' }} />
+      <Stack.Screen name="appointment/new" options={{ title: 'New appointment', presentation: 'modal' }} />
       <Stack.Screen name="dress/[id]" options={{ title: 'Dress' }} />
       <Stack.Screen name="booking/[id]" options={{ title: 'Booking' }} />
     </Stack>

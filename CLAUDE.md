@@ -25,6 +25,9 @@ schedule with availability, and cash flow. Beige theme.
   mobile/src/data/store.tsx (only photo upload differs), so change the two together.
 - Edit screens reuse the add forms: mobile opens /<thing>/new?id=…, web uses /<thing>/:id/edit
   (dress, booking, funding, expense). On web, Cash Flow movements link to what they came from.
+- Appointments (fitting visits before a booking: customer, phone, day, start/optional end time, details) are their own
+  table and tab, independent of bookings/availability. Times are 'HH:MM' strings; lists live in
+  mobile/src/app/(tabs)/appointments.tsx and web/src/pages/AppointmentsPage.tsx.
 
 ## Notes for Claude
 - Never commit .env files or Supabase keys.

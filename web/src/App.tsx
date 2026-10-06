@@ -7,6 +7,8 @@ import { SignIn } from './components/SignIn';
 import { Button, Spinner } from './components/ui';
 import { Wordmark } from './components/Wordmark';
 import { useStore } from './data/store';
+import { AppointmentFormPage } from './pages/AppointmentFormPage';
+import { AppointmentsPage } from './pages/AppointmentsPage';
 import { BookingFormPage } from './pages/BookingFormPage';
 import { BookingPage } from './pages/BookingPage';
 import { DressesPage } from './pages/DressesPage';
@@ -57,6 +59,7 @@ export function App() {
       <Route element={<Shell />}>
         <Route index element={<HomePage />} />
         <Route path="schedule" element={<SchedulePage />} />
+        <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="dresses" element={<DressesPage />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="dress/new" element={<Form page={DressFormPage} />} />
@@ -65,6 +68,8 @@ export function App() {
         <Route path="booking/new" element={<Form page={BookingFormPage} />} />
         <Route path="booking/:id" element={<BookingPage />} />
         <Route path="booking/:id/edit" element={<Form page={BookingFormPage} />} />
+        <Route path="appointment/new" element={<Form page={AppointmentFormPage} />} />
+        <Route path="appointment/:id/edit" element={<Form page={AppointmentFormPage} />} />
         <Route path="funding/new" element={<Form page={FundingFormPage} />} />
         <Route path="funding/:id/edit" element={<Form page={FundingFormPage} />} />
         <Route path="expense/new" element={<Form page={ExpenseFormPage} />} />

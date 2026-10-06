@@ -1,11 +1,12 @@
 // Money summary. Plain TypeScript, no React Native: the web app (web/) imports this file too.
-import type { Booking, Dress, Expense, Funding } from './types';
+import type { Appointment, Booking, Dress, Expense, Funding } from './types';
 
 export type AppData = {
   funding: Funding[];
   dresses: Dress[];
   expenses: Expense[];
   bookings: Booking[];
+  appointments: Appointment[];
 };
 
 /** Rental income is what customers actually paid. */

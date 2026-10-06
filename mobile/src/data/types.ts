@@ -54,3 +54,14 @@ export type Booking = {
   createdAt: string;
   note?: string;
 };
+
+/** A fitting visit: the customer tries dresses on before choosing one to book. */
+export type Appointment = {
+  id: string;
+  customerName: string;
+  customerPhone?: string;
+  date: string;
+  startTime: string; // 'HH:MM', 24-hour
+  endTime?: string; // 'HH:MM'; set when the visit is a range of hours
+  note?: string;
+};

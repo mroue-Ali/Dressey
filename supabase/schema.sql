@@ -64,6 +64,23 @@ create table public.bookings (
   ) where (status = 'booked')
 );
 
+-- Fitting visits: the customer comes over to try dresses on before booking one.
+-- Times are the owner's local wall-clock times (no time zone), like event_date.
+create table public.appointments (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null default auth.uid() references auth.users on delete cascade,
+  customer_name text not null,
+  customer_phone text,
+  date date not null,
+  start_time time not null,
+  end_time time, -- optional: the visit is a range of hours when set
+  note text,
+  created_at timestamptz not null default now(),
+  check (end_time is null or end_time > start_time)
+);
+
+create index on public.appointments (date, start_time);
+
 create index on public.bookings (dress_id, event_date);
 create index on public.bookings (event_date);
 
@@ -72,11 +89,13 @@ alter table public.funding enable row level security;
 alter table public.dresses enable row level security;
 alter table public.expenses enable row level security;
 alter table public.bookings enable row level security;
+alter table public.appointments enable row level security;
 
 create policy "owner" on public.funding for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy "owner" on public.dresses for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy "owner" on public.expenses for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy "owner" on public.bookings for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy "owner" on public.appointments for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
 -- Private bucket for dress photos, one folder per owner: <owner_id>/<file>.
 insert into storage.buckets (id, name, public) values ('dress-photos', 'dress-photos', false)

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import type { IconType } from 'react-icons';
 import {
   IoCalendar, IoCalendarOutline, IoHome, IoHomeOutline, IoLogOutOutline,
-  IoShirt, IoShirtOutline, IoWallet, IoWalletOutline,
+  IoShirt, IoShirtOutline, IoTime, IoTimeOutline, IoWallet, IoWalletOutline,
 } from 'react-icons/io5';
 import { Link, Outlet, useLocation, useNavigationType } from 'react-router';
 
@@ -18,6 +18,7 @@ type Tab = { to: string; label: string; icon: IconType; activeIcon: IconType; se
 const TABS: Tab[] = [
   { to: '/', label: 'Home', icon: IoHomeOutline, activeIcon: IoHome, sections: [] },
   { to: '/schedule', label: 'Schedule', icon: IoCalendarOutline, activeIcon: IoCalendar, sections: ['/booking/'] },
+  { to: '/appointments', label: 'Appointments', icon: IoTimeOutline, activeIcon: IoTime, sections: ['/appointment/'] },
   { to: '/dresses', label: 'Dresses', icon: IoShirtOutline, activeIcon: IoShirt, sections: ['/dress/'] },
   { to: '/finance', label: 'Cash Flow', icon: IoWalletOutline, activeIcon: IoWallet, sections: ['/funding/', '/expense/'] },
 ];

@@ -52,3 +52,26 @@ export function parseAmount(text: string): number {
   const cleaned = text.replace(/[,\s$]/g, '');
   return cleaned === '' ? NaN : Number(cleaned);
 }
+
+/** '15:30' -> '3:30 PM'. */
+export function formatTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** '15:30' + '17:00' -> '3:30 PM – 5:00 PM'; just the start when there is no end. */
+export function timeRange(start: string, end?: string): string {
+  return end ? `${formatTime(start)} – ${formatTime(end)}` : formatTime(start);
+}
+
+/** Minutes since midnight for 'HH:MM'. */
+export function timeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/** Moves 'HH:MM' by whole minutes, clamped to the same day (00:00-23:59). */
+export function shiftTime(hhmm: string, minutes: number): string {
+  const total = Math.min(Math.max(timeToMinutes(hhmm) + minutes, 0), 24 * 60 - 1);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}

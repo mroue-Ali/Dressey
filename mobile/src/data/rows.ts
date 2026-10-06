@@ -1,12 +1,13 @@
 // Supabase row <-> app type mapping (snake_case DB rows, camelCase app types).
 // Plain TypeScript, no React Native: the web app (web/) imports this file too.
 import { toISODate } from '../lib/format';
-import type { Booking, Dress, Expense, Funding } from './types';
+import type { Appointment, Booking, Dress, Expense, Funding } from './types';
 
 export type FundingInput = Omit<Funding, 'id'>;
 export type ExpenseInput = Omit<Expense, 'id'>;
 export type DressInput = Omit<Dress, 'id' | 'addedAt' | 'photoPath' | 'photoUri'>;
 export type BookingInput = Omit<Booking, 'id' | 'createdAt' | 'status'>;
+export type AppointmentInput = Omit<Appointment, 'id'>;
 export type BookingPatch = Partial<BookingInput & Pick<Booking, 'status'>>;
 
 export type Row = Record<string, any>;
@@ -30,6 +31,12 @@ export const toBooking = (r: Row): Booking => ({
   createdAt: toISODate(new Date(r.created_at)), note: opt(r.note),
 });
 
+export const toAppointment = (r: Row): Appointment => ({
+  id: r.id, customerName: r.customer_name, customerPhone: opt(r.customer_phone), date: r.date,
+  startTime: r.start_time.slice(0, 5), // Postgres returns 'HH:MM:SS'
+  endTime: r.end_time ? r.end_time.slice(0, 5) : undefined, note: opt(r.note),
+});
+
 export const fundingRow = (f: FundingInput) => ({ source: f.source, from_name: f.fromName, amount: f.amount, date: f.date, note: f.note ?? null });
 export const expenseRow = (e: ExpenseInput) => ({ category: e.category, amount: e.amount, date: e.date, note: e.note ?? null });
 export const dressRow = (d: DressInput) => ({
@@ -45,3 +52,7 @@ export function bookingRow(b: BookingPatch): Row {
   for (const [k, v] of Object.entries(b)) if (BOOKING_COLUMNS[k]) row[BOOKING_COLUMNS[k]] = v ?? null;
   return row;
 }
+export const appointmentRow = (a: AppointmentInput) => ({
+  customer_name: a.customerName, customer_phone: a.customerPhone ?? null, date: a.date,
+  start_time: a.startTime, end_time: a.endTime ?? null, note: a.note ?? null,
+});

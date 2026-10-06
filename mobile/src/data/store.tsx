@@ -7,11 +7,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { friendlyError, PHOTO_BUCKET, usernameToEmail } from '../lib/backend';
 import { supabase } from '../lib/supabase';
 import {
-  bookingRow, dressRow, expenseRow, fundingRow, toBooking, toDress, toExpense, toFunding,
-  type BookingInput, type BookingPatch, type DressInput, type ExpenseInput, type FundingInput,
+  appointmentRow, bookingRow, dressRow, expenseRow, fundingRow, toAppointment, toBooking, toDress, toExpense, toFunding,
+  type AppointmentInput, type BookingInput, type BookingPatch, type DressInput, type ExpenseInput, type FundingInput,
 } from './rows';
 import type { AppData } from './totals';
-import type { Booking, Dress } from './types';
+import type { Appointment, Booking, Dress } from './types';
 
 /** A picked photo, as base64 JPEG/PNG data. */
 export type PhotoInput = { base64: string; mimeType: string };
@@ -36,9 +36,12 @@ type Store = AppData & {
   addBooking: (b: BookingInput) => Promise<Booking>;
   updateBooking: (id: string, patch: BookingPatch) => Promise<void>;
   deleteBooking: (id: string) => Promise<void>;
+  addAppointment: (a: AppointmentInput) => Promise<Appointment>;
+  updateAppointment: (id: string, a: AppointmentInput) => Promise<void>;
+  deleteAppointment: (id: string) => Promise<void>;
 };
 
-const empty: AppData = { funding: [], dresses: [], expenses: [], bookings: [] };
+const empty: AppData = { funding: [], dresses: [], expenses: [], bookings: [], appointments: [] };
 const PHOTO_URL_TTL = 60 * 60 * 24 * 7; // signed photo links last a week
 
 function fail(error: { code?: string; message: string } | null): asserts error is null {
@@ -52,6 +55,9 @@ async function signPhotos(dresses: Dress[]): Promise<Dress[]> {
   const byPath = new Map((data ?? []).map((s) => [s.path, s.signedUrl]));
   return dresses.map((d) => (d.photoPath ? { ...d, photoUri: byPath.get(d.photoPath) ?? undefined } : d));
 }
+
+const sortAppointments = (list: Appointment[]) =>
+  [...list].sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 
 const StoreContext = createContext<Store | null>(null);
 
@@ -77,18 +83,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [funding, dresses, expenses, bookings] = await Promise.all([
+      const [funding, dresses, expenses, bookings, appointments] = await Promise.all([
         supabase.from('funding').select('*').order('date', { ascending: false }),
         supabase.from('dresses').select('*').order('created_at', { ascending: false }),
         supabase.from('expenses').select('*').order('date', { ascending: false }),
         supabase.from('bookings').select('*').order('event_date'),
+        supabase.from('appointments').select('*').order('date').order('start_time'),
       ]);
-      for (const res of [funding, dresses, expenses, bookings]) fail(res.error);
+      for (const res of [funding, dresses, expenses, bookings, appointments]) fail(res.error);
       setData({
         funding: (funding.data ?? []).map(toFunding),
         dresses: await signPhotos((dresses.data ?? []).map(toDress)),
         expenses: (expenses.data ?? []).map(toExpense),
         bookings: (bookings.data ?? []).map(toBooking),
+        appointments: (appointments.data ?? []).map(toAppointment),
       });
     } catch (e) {
       setLoadError((e as Error).message);
@@ -235,16 +243,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => ({ ...d, bookings: d.bookings.filter((b) => b.id !== id) }));
   }, []);
 
+  const addAppointment = useCallback(async (a: AppointmentInput) => {
+    const { data: row, error } = await supabase.from('appointments').insert(appointmentRow(a)).select().single();
+    fail(error);
+    const appointment = toAppointment(row);
+    setData((d) => ({ ...d, appointments: sortAppointments([...d.appointments, appointment]) }));
+    return appointment;
+  }, []);
+
+  const updateAppointment = useCallback(async (id: string, a: AppointmentInput) => {
+    const { data: row, error } = await supabase.from('appointments').update(appointmentRow(a)).eq('id', id).select().single();
+    fail(error);
+    const updated = toAppointment(row);
+    setData((d) => ({ ...d, appointments: sortAppointments(d.appointments.map((x) => (x.id === id ? updated : x))) }));
+  }, []);
+
+  const deleteAppointment = useCallback(async (id: string) => {
+    const { error } = await supabase.from('appointments').delete().eq('id', id);
+    fail(error);
+    setData((d) => ({ ...d, appointments: d.appointments.filter((x) => x.id !== id) }));
+  }, []);
+
   const value = useMemo(
     () => ({
       ...data, session, authReady, loading, loadError, reload, signIn, signOut,
       addFunding, updateFunding, deleteFunding, addExpense, updateExpense, deleteExpense,
       addDress, updateDress, deleteDress, addBooking, updateBooking, deleteBooking,
+      addAppointment, updateAppointment, deleteAppointment,
     }),
     [
       data, session, authReady, loading, loadError, reload, signIn, signOut,
       addFunding, updateFunding, deleteFunding, addExpense, updateExpense, deleteExpense,
       addDress, updateDress, deleteDress, addBooking, updateBooking, deleteBooking,
+      addAppointment, updateAppointment, deleteAppointment,
     ],
   );
 

@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { longDate, parseISODate } from '../lib/format';
+import { formatTime, longDate, parseISODate, shiftTime } from '../lib/format';
 import { colors, fonts, radius, spacing, type } from '../theme';
 import { MonthCalendar } from './MonthCalendar';
 import { Card } from './ui';
@@ -100,6 +100,22 @@ export function DateField({ value, onChange }: { value: string; onChange: (iso: 
   );
 }
 
+/** Time row with - / + buttons that move it by 15 minutes (hold-free, no picker dependency). */
+export function TimeField({ value, onChange }: { value: string; onChange: (hhmm: string) => void }) {
+  const step = (minutes: number) => onChange(shiftTime(value, minutes));
+  return (
+    <View style={[styles.input, styles.timeRow]}>
+      <Pressable onPress={() => step(-15)} hitSlop={8} accessibilityLabel="15 minutes earlier" style={styles.stepBtn}>
+        <Ionicons name="remove" size={20} color={colors.primaryDark} />
+      </Pressable>
+      <Text style={[type.title, { flex: 1, textAlign: 'center' }]}>{formatTime(value)}</Text>
+      <Pressable onPress={() => step(15)} hitSlop={8} accessibilityLabel="15 minutes later" style={styles.stepBtn}>
+        <Ionicons name="add" size={20} color={colors.primaryDark} />
+      </Pressable>
+    </View>
+  );
+}
+
 /** Runs an async save, tracking progress and a user-facing error message. */
 export function useSave() {
   const [saving, setSaving] = useState(false);
@@ -181,6 +197,8 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontFamily: fonts.medium, fontSize: 14, color: colors.text },
   chipTextActive: { color: colors.textOnPrimary },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
+  stepBtn: { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   formError: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radius.md },
   submit: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: 'center' },
